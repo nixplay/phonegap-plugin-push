@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<plugin xmlns="http://www.phonegap.com/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.android.com/apk/lib/com.amazon.device.ads" xmlns:rim="http://www.blackberry.com/ns/widgets" id="phonegap-plugin-push" version="1.11.0">
+<plugin xmlns="http://www.phonegap.com/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.android.com/apk/lib/com.amazon.device.ads" xmlns:rim="http://www.blackberry.com/ns/widgets" id="phonegap-plugin-push" version="1.10.7">
   <name>PushPlugin</name>
   <description>
 		This plugin allows your application to receive push notifications on Android, iOS and Windows devices.
@@ -47,6 +47,15 @@
           <category android:name="${applicationId}"/>
         </intent-filter>
       </receiver>
+      <receiver
+            android:name="com.adobe.phonegap.push.GCMBroadcastReceiver"
+            android:permission="com.google.android.c2dm.permission.SEND" >
+            <intent-filter>
+                    <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+                    <action android:name="com.google.android.c2dm.intent.REGISTRATION" />
+                    <category android:name="${applicationId}.cdmclient" />
+            </intent-filter>
+      </receiver>
       <service android:name="com.adobe.phonegap.push.GCMIntentService" android:exported="false">
         <intent-filter>
           <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
@@ -58,6 +67,15 @@
         </intent-filter>
       </service>
       <service android:name="com.adobe.phonegap.push.RegistrationIntentService" android:exported="false"/>
+      <service android:exported="false" android:name="com.adobe.phonegap.push.NotificationJobService"
+                 android:permission="android.permission.BIND_JOB_SERVICE">
+
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+                <action android:name="com.google.android.c2dm.intent.REGISTRATION" />
+                <category android:name="${applicationId}" />
+            </intent-filter>
+        </service>
     </config-file>
     <framework src="push.gradle" custom="true" type="gradleReference"/>
     <framework src="com.android.support:support-v13:23+"/>
@@ -72,6 +90,8 @@
     <source-file src="src/android/com/adobe/phonegap/push/PermissionUtils.java" target-dir="src/com/adobe/phonegap/push/"/>
     <source-file src="src/android/com/adobe/phonegap/push/BackgroundActionButtonHandler.java" target-dir="src/com/adobe/phonegap/push/"/>
     <source-file src="src/android/com/adobe/phonegap/push/PushDismissedHandler.java" target-dir="src/com/adobe/phonegap/push/"/>
+    <source-file src="src/android/com/adobe/phonegap/push/NotificationJobService.java" target-dir="src/com/adobe/phonegap/push/"/>
+    <source-file src="src/android/com/adobe/phonegap/push/GCMBroadcastReceiver.java" target-dir="src/com/adobe/phonegap/push/"/>
   </platform>
   <platform name="browser">
     <js-module src="www/browser/push.js" name="BrowserPush">

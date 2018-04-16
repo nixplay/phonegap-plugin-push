@@ -1,6 +1,5 @@
 package com.adobe.phonegap.push;
 
-import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -20,15 +19,17 @@ import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.RequiresApi;
+import android.support.v4.app.JobIntentService;
 import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationCompat.WearableExtender;
 import android.support.v4.app.RemoteInput;
 import android.text.Html;
 import android.text.Spanned;
 import android.util.Log;
 
-import com.google.android.gms.gcm.GcmListenerService;
+import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -43,11 +44,93 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Random;
 
-@SuppressLint("NewApi")
-public class GCMIntentService extends GcmListenerService implements PushConstants {
+/**
+ * _   _ _______   ________ _       _____   __
+ * | \ | |_   _\ \ / /| ___ \ |     / _ \ \ / /
+ * |  \| | | |  \ V / | |_/ / |    / /_\ \ V /
+ * | . ` | | |  /   \ |  __/| |    |  _  |\ /
+ * | |\  |_| |_/ /^\ \| |   | |____| | | || |
+ * \_| \_/\___/\/   \/\_|   \_____/\_| |_/\_/
+ * <p>
+ * Created by jameskong on 3/4/2018.
+ */
 
-    private static final String LOG_TAG = "Push_GCMIntentService";
+public class NotificationJobService extends JobIntentService implements PushConstants{
     private static HashMap<Integer, ArrayList<String>> messageMap = new HashMap<Integer, ArrayList<String>>();
+    private NotificationManager manager;
+    /**
+     * Unique job ID for this service.
+     */
+    static final int JOB_ID = 1000;
+    private static final String LOG_TAG = "NotificationJobService";
+
+    /**
+     * Convenience method for enqueuing work in to this service.
+     */
+    public static void enqueueWork(Context context, Intent work) {
+        enqueueWork(context, NotificationJobService.class, JOB_ID, work);
+    }
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    @Override
+    protected void onHandleWork(Intent intent)
+    {
+
+        Bundle extras = intent.getExtras();
+        GoogleCloudMessaging service = GoogleCloudMessaging.getInstance(this);
+
+        String messageType = service.getMessageType(intent);
+
+
+        Log.d(LOG_TAG, "GCMIntentService received message type : " + messageType);
+
+        if (!extras.isEmpty())
+        {
+            if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType))
+            {
+                // Post notification of the received message (extras).
+                if (extras != null ) {
+                    Context applicationContext = getApplicationContext();
+
+                    SharedPreferences prefs = applicationContext.getSharedPreferences(PushPlugin.COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
+                    boolean forceShow = prefs.getBoolean(FORCE_SHOW, false);
+                    boolean clearBadge = prefs.getBoolean(CLEAR_BADGE, false);
+                    String messageKey = prefs.getString(MESSAGE_KEY, MESSAGE);
+                    String titleKey = prefs.getString(TITLE_KEY, TITLE);
+
+                    extras = normalizeExtras(applicationContext, extras, messageKey, titleKey);
+
+                    if (clearBadge) {
+                        PushPlugin.setApplicationIconBadgeNumber(getApplicationContext(), 0);
+                    }
+
+                    // if we are in the foreground and forceShow is `false` only send data
+                    if (!forceShow && PushPlugin.isInForeground()) {
+                        Log.d(LOG_TAG, "foreground");
+                        extras.putBoolean(FOREGROUND, true);
+                        extras.putBoolean(COLDSTART, false);
+                        PushPlugin.sendExtras(extras);
+                    }
+                    // if we are in the foreground and forceShow is `true`, force show the notification if the data has at least a message or title
+                    else if (forceShow && PushPlugin.isInForeground()) {
+                        Log.d(LOG_TAG, "foreground force");
+                        extras.putBoolean(FOREGROUND, true);
+                        extras.putBoolean(COLDSTART, false);
+
+                        showNotificationIfPossible(applicationContext, extras);
+                    }
+                    // if we are not in the foreground always send notification if the data has at least a message or title
+                    else {
+                        Log.d(LOG_TAG, "background");
+                        extras.putBoolean(FOREGROUND, false);
+                        extras.putBoolean(COLDSTART, PushPlugin.isActive());
+
+                        showNotificationIfPossible(applicationContext, extras);
+                    }
+                }
+
+            }
+        }
+    }
 
     public void setNotification(int notId, String message){
         ArrayList<String> messageList = messageMap.get(notId);
@@ -63,51 +146,14 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
         }
     }
 
+
     @Override
-    public void onMessageReceived(String from, Bundle extras) {
-        Log.d(LOG_TAG, "onMessage - from: " + from);
-
-        if (extras != null && isAvailableSender(from)) {
-            Context applicationContext = getApplicationContext();
-
-            SharedPreferences prefs = applicationContext.getSharedPreferences(PushPlugin.COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
-            boolean forceShow = prefs.getBoolean(FORCE_SHOW, false);
-            boolean clearBadge = prefs.getBoolean(CLEAR_BADGE, false);
-            String messageKey = prefs.getString(MESSAGE_KEY, MESSAGE);
-            String titleKey = prefs.getString(TITLE_KEY, TITLE);
-
-            extras = normalizeExtras(applicationContext, extras, messageKey, titleKey);
-
-            if (clearBadge) {
-                PushPlugin.setApplicationIconBadgeNumber(getApplicationContext(), 0);
-            }
-
-            // if we are in the foreground and forceShow is `false` only send data
-            if (!forceShow && PushPlugin.isInForeground()) {
-                Log.d(LOG_TAG, "foreground");
-                extras.putBoolean(FOREGROUND, true);
-                extras.putBoolean(COLDSTART, false);
-                PushPlugin.sendExtras(extras);
-            }
-            // if we are in the foreground and forceShow is `true`, force show the notification if the data has at least a message or title
-            else if (forceShow && PushPlugin.isInForeground()) {
-                Log.d(LOG_TAG, "foreground force");
-                extras.putBoolean(FOREGROUND, true);
-                extras.putBoolean(COLDSTART, false);
-
-                showNotificationIfPossible(applicationContext, extras);
-            }
-            // if we are not in the foreground always send notification if the data has at least a message or title
-            else {
-                Log.d(LOG_TAG, "background");
-                extras.putBoolean(FOREGROUND, false);
-                extras.putBoolean(COLDSTART, PushPlugin.isActive());
-
-                showNotificationIfPossible(applicationContext, extras);
-            }
-        }
+    public void onDestroy()
+    {
+        super.onDestroy();
     }
 
+    //from GCMIntentService
     /*
      * Change a values key in the extras bundle
      */
@@ -219,7 +265,7 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                         // If object contains message keys promote each value to the root of the bundle
                         JSONObject data = new JSONObject((String) json);
                         if ( data.has(ALERT) || data.has(MESSAGE) || data.has(BODY) || data.has(TITLE) ||
-                            data.has(messageKey) || data.has(titleKey) ) {
+                                data.has(messageKey) || data.has(titleKey) ) {
                             Iterator<String> jsonIter = data.keys();
                             while (jsonIter.hasNext()) {
                                 String jsonKey = jsonIter.next();
@@ -257,11 +303,11 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                     newExtras.putString(newKey, valueData);
                 }
                 continue;
-            // In case we weren't working on the payload data node or the notification node,
-            // normalize the key.
-            // This allows to have "message" as the payload data key without colliding
-            // with the other "message" key (holding the body of the payload)
-            // See issue #1663
+                // In case we weren't working on the payload data node or the notification node,
+                // normalize the key.
+                // This allows to have "message" as the payload data key without colliding
+                // with the other "message" key (holding the body of the payload)
+                // See issue #1663
             } else {
                 String newKey = normalizeKey(key, messageKey, titleKey);
                 Log.d(LOG_TAG, "replace key " + key + " with " + newKey);
@@ -356,24 +402,18 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
 
         requestCode = new Random().nextInt();
         PendingIntent deleteIntent = PendingIntent.getBroadcast(this, requestCode, dismissedNotificationIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-        NotificationCompat.Builder mBuilder;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            mBuilder = new NotificationCompat.Builder(context, DEFAULT_CHANNEL_ID)
-                    .setWhen(System.currentTimeMillis())
-                    .setContentTitle(fromHtml(extras.getString(TITLE)))
-                    .setTicker(fromHtml(extras.getString(TITLE)))
-                    .setContentIntent(contentIntent)
-                    .setDeleteIntent(deleteIntent)
-                    .setAutoCancel(true);
-        }else {
-            mBuilder = new NotificationCompat.Builder(context)
-                            .setWhen(System.currentTimeMillis())
-                            .setContentTitle(fromHtml(extras.getString(TITLE)))
-                            .setTicker(fromHtml(extras.getString(TITLE)))
-                            .setContentIntent(contentIntent)
-                            .setDeleteIntent(deleteIntent)
-                            .setAutoCancel(true);
-        }
+
+        NotificationCompat.Builder mBuilder =
+                new NotificationCompat.Builder(context , DEFAULT_CHANNEL_ID)
+                        .setWhen(System.currentTimeMillis())
+                        .setContentTitle(fromHtml(extras.getString(TITLE)))
+                        .setTicker(fromHtml(extras.getString(TITLE)))
+                        .setContentIntent(contentIntent)
+                        .setDeleteIntent(deleteIntent)
+                        .setAutoCancel(true);
+
+
+
         SharedPreferences prefs = context.getSharedPreferences(PushPlugin.COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
         String localIcon = prefs.getString(ICON, null);
         String localIconColor = prefs.getString(ICON_COLOR, null);
@@ -467,6 +507,13 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
         mNotificationManager.notify(appName, notId, mBuilder.build());
     }
 
+    private NotificationManager getManager() {
+        if (manager == null) {
+            manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        }
+        return manager;
+    }
+
     private void updateIntent(Intent intent, String callback, Bundle extras, boolean foreground, int notId) {
         intent.putExtra(CALLBACK, callback);
         intent.putExtra(PUSH_BUNDLE, extras);
@@ -523,8 +570,8 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                     }
 
                     NotificationCompat.Action.Builder actionBuilder =
-                        new NotificationCompat.Action.Builder(resources.getIdentifier(action.optString(ICON, ""), DRAWABLE, packageName),
-                            action.getString(TITLE), pIntent);
+                            new NotificationCompat.Action.Builder(resources.getIdentifier(action.optString(ICON, ""), DRAWABLE, packageName),
+                                    action.getString(TITLE), pIntent);
 
                     RemoteInput remoteInput = null;
                     if (inline) {
@@ -532,8 +579,8 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                         String replyLabel = "Enter your reply here";
                         remoteInput =
                                 new RemoteInput.Builder(INLINE_REPLY)
-                                .setLabel(replyLabel)
-                                .build();
+                                        .setLabel(replyLabel)
+                                        .build();
                         actionBuilder.addRemoteInput(remoteInput);
                     }
 
@@ -549,7 +596,7 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                     wAction = null;
                     pIntent = null;
                 }
-                mBuilder.extend(new WearableExtender().addActions(wActions));
+                mBuilder.extend(new NotificationCompat.WearableExtender().addActions(wActions));
                 wActions.clear();
             } catch(JSONException e) {
                 // nope

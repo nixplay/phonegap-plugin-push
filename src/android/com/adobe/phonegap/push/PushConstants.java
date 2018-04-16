@@ -80,4 +80,17 @@ public interface PushConstants {
     public static final String IMAGE_TYPE_CIRCLE = "circle";
     public static final String SUBJECT = "subject";
     public static final String PUSH_DISMISSED = "push_dismissed";
+    public static final String DEFAULT_CHANNEL_ID = "DefaultPluginChannel";
+    public static final String CHANNELS = "channels";
+    public static final String CHANNEL_ID = "id";
+    public static final String CHANNEL_DESCRIPTION = "description";
+    public static final String CHANNEL_IMPORTANCE = "importance";
+    public static final String CHANNEL_LIGHT_COLOR = "lightColor";
+    public static final String CHANNEL_VIBRATION = "vibration";
+    public static final String ANDROID_CHANNEL_ID = "android_channel_id";
+    public static final String CHANNEL_STATE = "state";
+    public static final String CREATE_CHANNEL = "createChannel";
+    public static final String DELETE_CHANNEL = "deleteChannel";
+    public static final String ONGOING = "ongoing";
+    public static final String LIST_CHANNELS = "listChannels";
 }
